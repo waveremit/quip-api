@@ -29,18 +29,19 @@ to append items (in Markdown) to the first bulleted or checklist in a
 given document, which is useful for automating a task list.
 """
 
+import codecs
 import datetime
 import json
 import logging
 import sys
 import time
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 import xml.etree.cElementTree
 
-reload(sys)
-sys.setdefaultencoding('utf8')
-
+# Create the shared utf8 "reader" which will be used to convert the bytes
+# objects as-returned by urllib.request.urlopen to str objects on-the-fly.
+utf8_reader = codecs.getreader('utf-8')
 
 class QuipClient(object):
     """A Quip API client"""
@@ -50,14 +51,14 @@ class QuipClient(object):
     AFTER_SECTION, \
     BEFORE_SECTION, \
     REPLACE_SECTION, \
-    DELETE_SECTION = range(6)
+    DELETE_SECTION = list(range(6))
 
     # Folder colors
     MANILA, \
     RED, \
     ORANGE, \
     GREEN, \
-    BLUE = range(5)
+    BLUE = list(range(5))
 
     def __init__(self, access_token=None, client_id=None, client_secret=None,
                  base_url=None, request_timeout=None, retry_rate_limit=False):
@@ -249,7 +250,7 @@ class QuipClient(object):
             thread = threads[thread_id]
             child_section_ids = re.findall(r" id='([a-zA-Z0-9]{11})'",
                                            thread["html"])
-            parent_map = dict(zip(child_section_ids, original_section_ids))
+            parent_map = dict(list(zip(child_section_ids, original_section_ids)))
             messages = self.get_messages(thread_id)
             for message in reversed(messages):
                 kwargs = {}
@@ -362,7 +363,7 @@ class QuipClient(object):
         row = self.find_row_from_header(spreadsheet, header, value)
         if row:
             ids = self.get_row_ids(row)
-            for head, val in updates.iteritems():
+            for head, val in updates.items():
                 index = self.get_index_of_header(headers, head)
                 if not index or index >= len(ids) or not ids[index]:
                     continue
@@ -377,7 +378,7 @@ class QuipClient(object):
             updates[header] = value
             indexed_items = {}
             extra_items = []
-            for head, val in updates.iteritems():
+            for head, val in updates.items():
                 index = self.get_index_of_header(
                     headers, head, default=None)
                 if index is None or index in indexed_items:
@@ -583,18 +584,18 @@ class QuipClient(object):
 
     def get_blob(self, thread_id, blob_id):
         """Returns a file-like object with the contents of the given blob from
-        the given thread.
+        the given thread (a binary / bytes file-like object).
 
         The object is described in detail here:
         https://docs.python.org/2/library/urllib2.html#urllib2.urlopen
         """
-        request = urllib2.Request(
+        request = urllib.request.Request(
             url=self._url("blob/%s/%s" % (thread_id, blob_id)))
         if self.access_token:
             request.add_header("Authorization", "Bearer " + self.access_token)
         try:
-            return urllib2.urlopen(request, timeout=self.request_timeout)
-        except urllib2.HTTPError, error:
+            return urllib.request.urlopen(request, timeout=self.request_timeout)
+        except urllib.error.HTTPError as error:
             try:
                 # Extract the developer-friendly error message from the response
                 message = json.loads(error.read())["error_description"]
@@ -630,7 +631,7 @@ class QuipClient(object):
                 files={"blob": blob}, headers=headers)
             response.raise_for_status()
             return response.json()
-        except requests.RequestException, error:
+        except requests.RequestException as error:
             try:
                 # Extract the developer-friendly error message from the response
                 message = error.response.json()["error_description"]
@@ -639,20 +640,20 @@ class QuipClient(object):
             raise QuipError(error.response.status_code, message, error)
 
     def _fetch_json(self, path, post_data=None, **args):
-        request = urllib2.Request(url=self._url(path, **args))
+        request = urllib.request.Request(url=self._url(path, **args))
         if post_data:
-            post_data = dict((k, v) for k, v in post_data.items()
+            post_data = dict((k, v) for k, v in list(post_data.items())
                              if v or isinstance(v, int))
-            request.data = urllib.urlencode(self._clean(**post_data))
+            request.data = urllib.parse.urlencode(self._clean(**post_data))
         if self.access_token:
             request.add_header("Authorization", "Bearer " + self.access_token)
         try:
-            return json.loads(
-                urllib2.urlopen(request, timeout=self.request_timeout).read())
-        except urllib2.HTTPError, error:
+            return json.load(utf8_reader(
+                urllib.request.urlopen(request, timeout=self.request_timeout)))
+        except urllib.error.HTTPError as error:
             try:
                 # Extract the developer-friendly error message from the response
-                message = json.loads(error.read())["error_description"]
+                message = json.load(error)["error_description"]
             except Exception:
                 raise error
             if (self.retry_rate_limit and error.code == 503 and
@@ -669,15 +670,15 @@ class QuipClient(object):
     def _clean(self, **args):
         # We only expect ints or strings, but on Windows ints can become longs
         return dict((k, str(v) if isinstance(
-            v, (int, float, long, complex)) else v.encode("utf-8"))
-                    for k, v in args.items() if v or isinstance(
-                            v, (int, float, long, complex)))
+            v, (int, float, complex)) else v.encode("utf-8"))
+                    for k, v in list(args.items()) if v or isinstance(
+                            v, (int, float, complex)))
 
     def _url(self, path, **args):
         url = self.base_url + "/1/" + path
         args = self._clean(**args)
         if args:
-            url += "?" + urllib.urlencode(args)
+            url += "?" + urllib.parse.urlencode(args)
         return url
 
 
