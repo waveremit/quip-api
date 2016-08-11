@@ -644,7 +644,7 @@ class QuipClient(object):
         if post_data:
             post_data = dict((k, v) for k, v in list(post_data.items())
                              if v or isinstance(v, int))
-            request.data = urllib.parse.urlencode(self._clean(**post_data))
+            request.data = urllib.parse.urlencode(self._clean(**post_data)).encode('utf-8')
         if self.access_token:
             request.add_header("Authorization", "Bearer " + self.access_token)
         try:
