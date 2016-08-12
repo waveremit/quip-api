@@ -598,7 +598,7 @@ class QuipClient(object):
         except urllib.error.HTTPError as error:
             try:
                 # Extract the developer-friendly error message from the response
-                message = json.loads(error.read())["error_description"]
+                message = json.load(utf8_reader(error))["error_description"]
             except Exception:
                 raise error
             if (self.retry_rate_limit and error.code == 503 and
@@ -650,10 +650,11 @@ class QuipClient(object):
         try:
             return json.load(utf8_reader(
                 urllib.request.urlopen(request, timeout=self.request_timeout)))
+
         except urllib.error.HTTPError as error:
             try:
                 # Extract the developer-friendly error message from the response
-                message = json.load(error)["error_description"]
+                message = json.load(utf8_reader(error))["error_description"]
             except Exception:
                 raise error
             if (self.retry_rate_limit and error.code == 503 and
